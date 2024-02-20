@@ -211,6 +211,9 @@ FnDrawFrameByPrototype proc
     call FnStrToUnsigned            ; get preset No
     inc si
 
+    cmp bl, FrameStylesCount
+    ja @@NotStyle                   ; check if number is out of range
+
     sub bx, 1
     mov cx, bx
     shl bx, 3
@@ -224,10 +227,18 @@ FnDrawFrameByPrototype proc
     mov si, offset FrameStyles
     add si, dx                      ; calculate style string address
 
+@@Draw:
     call FnDrawFrame                ; draw frame
     pop si
 
     ret
+
+@@NotStyle:                         ; if number is out of range
+    pop bx
+    push si
+
+    mov si, offset FrameStyles 
+    jmp @@Draw
 
 endp
 
@@ -435,10 +446,12 @@ FnSetFirstLine proc
     ret
 endp
 
-FirstLine   db 0d
+FirstLine db 0d
+
+FrameStylesCount db 3d
 
 FrameStyles db '+-+| |+-+'
-            db 00c9h, 00cdh, 00bbh, 00bah, ' ', 00bah, 00c8h, 00cdh, 00bch
-            db 03h, 03h, 03h, 03h, ' ', 03h, 03h, 03h, 03h
+            db 00c9h, 00cdh, 00bbh, 00bah, ' ', 00bah, 00c8h, 00cdh, 00bch  ; symbols hex codes for frame style 2 (double lines)
+            db 03h, 03h, 03h, 03h, ' ', 03h, 03h, 03h, 03h                  ; symbols hex codes for frame style 3 (hearts)
 
 end	Start

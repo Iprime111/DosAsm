@@ -91,7 +91,7 @@ FnHexDigitToNumber  proc
     cmp al, '9'
     ja @@NotDecDigit
 
-    sub al, '0'
+    sub al, '0'                 ; if dec digit
     ret
 
 @@NotDecDigit:
@@ -100,7 +100,7 @@ FnHexDigitToNumber  proc
     cmp al, 'F'
     ja @@NotCapitalLetter
 
-    sub al, 55d
+    sub al, 55d                 ; if capital hex letter
     ret
 
 @@NotCapitalLetter:
@@ -109,7 +109,7 @@ FnHexDigitToNumber  proc
     cmp al, 'f'
     ja @@NotSmallLetter
 
-    sub al, 87d
+    sub al, 87d                 ; if small hex letter
     ret
 
 @@NotSmallLetter:

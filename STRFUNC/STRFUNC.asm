@@ -8,42 +8,100 @@ Start:
 
     cld
 
+    call FnDisplayStrings       ; display test strings
+
     push offset TestString
     call FnStrlenCustom
-    add sp, 2
+    add sp, 2                   ; get strlen of first string
 
     inc ax
     push ax
-    push 'a'
+    push 'c'
     push offset TestString
     call FnMemchrCustom
-    add sp, 6
+    add sp, 6                   ; find 'c' symbol in first string
     
     push 2d
     push 'x'
     push offset TestString
     call FnMemsetCustom
-    add sp, 6
+    add sp, 6                   ; set first 2 symbols of first string to 'x'
+
+    mov ah, 9h
+    mov dx, offset AfterMemset
+    int 21h
+    call FnDisplayStrings       ; display result
 
     push offset DestString
     push offset TestString
     push 6d
     call FnMemcpyCustom
-    add sp, 6
+    add sp, 6                   ; copy 6 symbols of first string to second
+
+    mov ah, 9h
+    mov dx, offset AfterMemcpy
+    int 21h
+    call FnDisplayStrings       ; display result
 
     push offset DestString
     push offset TestString
     push 7d
-    call FnMemcmpCustom
+    call FnMemcmpCustom         ; compare 2 strings
     add sp, 6
 
     push offset TestString + 2
     push offset TestString
     push 3d
-    call FnMovmemCustom
+    call FnMovmemCustom         ; move first 3 symbols of first string to it's second symbol
     add sp, 6
 
+    mov ah, 9h
+    mov dx, offset AfterMovmem
+    int 21h
+    call FnDisplayStrings       ; display result
+
+
 ret
+
+; -----------------------------------------------------------------------------
+; | FnDisplayStrings
+; | Args:   No args
+; | Assumes:    Variables are exist
+; | Returns:    Nothing
+; | Destroys:   Nothing
+; -----------------------------------------------------------------------------
+ret
+FnDisplayStrings proc
+    push dx
+    push ax
+
+    mov ah, 09h
+    mov dx, offset SourceStringMessage
+    int 21h
+
+    mov dx, offset TestString
+    int 21h
+
+    mov dx, offset NewLine
+    int 21h
+
+    mov dx, offset DestStringMessage
+    int 21h
+
+    mov dx, offset DestString
+    int 21h
+
+    mov dx, offset NewLine
+    int 21h
+
+    mov dx, offset NewLine
+    int 21h
+
+    pop ax
+    pop dx
+
+    ret
+endp
 
 ; -----------------------------------------------------------------------------
 ; | FnMemcmpCustom (pascal)
@@ -278,7 +336,15 @@ FnStrlenCustom proc
     ret             ; restore bp and exit
 endp
 
-TestString db "abcdef3", 00h
-DestString db "11111122"
+SourceStringMessage db "Source string: $"
+DestStringMessage   db "Destination string: $"
+NewLine             db 0ah, 0dh, '$'
+
+AfterMemcpy db "After memcpy 6 symbols from source to dest: ", 0ah, 0dh, '$'
+AfterMovmem db "After movmem 3 symbols from source to source + 2: ", 0ah, 0dh, '$'
+AfterMemset db "After memset 2 symbols of source with x: ", 0ah, 0dh, '$'
+
+TestString db "abcdef3$", 00h
+DestString db "11111122$"
 
 end     Start
