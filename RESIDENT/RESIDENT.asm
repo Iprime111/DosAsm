@@ -22,21 +22,47 @@ Start:
     inc dx
     int 21h                                     ; terminate program and stay resident
 
+include VARIABLE.asm
 include FRAME.asm
-
+include BUFFER.asm
 
 ; -----------------------------------------------------------------------------
 ; | FnShowFrame
 ; | Args: No args
-; | Assumes:    Nothing
-; | Destroys:   es register
+; | Assumes:    Top <RegistersCount> register values in stack are needed values
+; | Destroys:   es, ds, ax, bx, cx registers
 ; | Returns:    Nothing
 ; -----------------------------------------------------------------------------
 ret
 FnShowFrame proc
+    push bp
+    mov bp, sp                          ; set up stack frame
+
     push 0b800h
-    pop es
-    call FnDrawFrameWithTitle
+    pop es                              ; set es to VMem begin
+
+    push cs
+    pop ds                              ; set needed ds
+
+    call FnDrawFrameWithTitle           ; redraw frame
+
+    mov bh, FirstLine + 1
+    mov cx, RegistersCount
+    add bp, 4                           ; set first line, lines count and increment bp
+
+@@RegisterDrawingLoop:
+    call FnGetLineAddress
+    add di, RegisterValueOffset * 2     ; calculate value address
+
+    mov ax, [bp]                        ; mov next register value to ax
+    call FnPrintHexWord                 ; print ax value
+
+    inc bh
+    add bp, 2                           ; increment bp ('cause GOD DAMN FUCKING SHITTY DOS don't allows me to fucking address to [bp+bx])
+    loop @@RegisterDrawingLoop
+    
+    pop bp                              ; restore bp
+    ret
 endp
 
 ; -----------------------------------------------------------------------------
@@ -48,9 +74,9 @@ endp
 ; -----------------------------------------------------------------------------
 ret
 FnSwitchFrameState proc
-    mov al, FrameState
+    mov al, FrameState          ; get state from RAM
     xor al, 0ffh                ; invert state
-    mov FrameState, al
+    mov FrameState, al          ; save state
     ret
 endp
 
@@ -63,49 +89,66 @@ endp
 ; -----------------------------------------------------------------------------
 ret
 KeyboardInt proc
-    push ax bx es ds            ; save registers
+    push sp bp ss es ds di si dx cx bx ax           ; save registers
 
     push cs
-    pop ds
+    pop ds                                          ; mov cs, ds (shiTASM notation)
+    
+    ; SoMe GiPsY mAgIc HeRe (DO NOT TOUCH OR IT WILL BE PIZDEZ)
+    ; Just getting cs and ip values from interrupt call
+    mov bp, sp                                      ; create pseudo stack frame to save info 'bout adresses
+    mov ax, [bp + (RegistersCount - 2) * 2 + 0]     ; get ip
+    push ax                                         ; push ip
+    mov ax, [bp + (RegistersCount - 2) * 2 + 2]     ; get code segment
+    push ax                                         ; push code segment
 
-    in al, 60h                  ; read scan code
+    in al, 60h                                      ; read scan code
 
-    cmp al, 36h                 ; cmp with rshift press scan code
+    cmp al, 36h                                     ; cmp with rshift press scan code
     jne @@NotHotkeyPress
 
-    call FnSwitchFrameState
+    call FnSwitchFrameState                         ; if hotkey is pressed - switch frame state
     cmp al, 0h
-    je @@ResetPPI               ; if frame is turned off - do nothing
-    
-    call FnShowFrame
+    je @@RestoreScreen                              ; if frame is being turned off - restore screen content
+
+
+    call FnSaveScreenToBuffer                       
+    call FnShowFrame                                ; if frame is being turned on - save screen and draw
 
     jmp @@ResetPPI
 
+@@RestoreScreen:
+    push 0b800h
+    pop es                                          ; set es to VMem address
+
+    call FnDrawBufferContent                        ; move buffer content to VMem
+    jmp @@ResetPPI
+
 @@NotHotkeyPress:
-    cmp al, 0b6h                ; cmp with rshift release scan code
+    cmp al, 0b6h                                    ; cmp with rshift release scan code
     jne @@DefaultInterrupt
 
 @@ResetPPI:
     in al,  61h
     or al,  80h
-    out 61h, al                 ; set 61 port's higher bit to 1
+    out 61h, al                                     ; set 61 port's higher bit to 1
 
     and al,  not 80h            
-    out 61h, al                 ; set 61 port's higher bit to 0
+    out 61h, al                                     ; set 61 port's higher bit to 0
 
     mov al, 20h
-    out 20h, al                 ; reset interrupt controller
+    out 20h, al                                     ; reset interrupt controller
 
-    pop ds es bx ax
+    pop ax ax ax bx cx dx si di ds es ss bp sp      ; ax is being popped 3 times to balance stack that contains info 'bout cs and ip
     iret
 
 @@DefaultInterrupt:
-    pop ds es bx ax
+    pop ax ax ax bx cx dx si di ds es ss bp sp      ; ax is being popped 3 times to balance stack that contains info 'bout cs and ip
 endp
 
-db 0eah
+db 0eah                                             ; jmp instruction
 OldKeyboardIntOffset  dw 0
-OldKeyboardIntSegment dw 0
+OldKeyboardIntSegment dw 0                          ; some self-modifying code for chain interrupts
 
 FrameState db 0
 
