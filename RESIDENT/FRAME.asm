@@ -1,11 +1,48 @@
-; TODO: better comments
+; -----------------------------------------------------------------------------
+; | FnDrawRegisterFrame
+; | Args: No args
+; | Assumes:    Top <RegistersCount> register values in stack are needed values
+; | Destroys:   es, ds, ax, bx, cx registers
+; | Returns:    Nothing
+; -----------------------------------------------------------------------------
+ret
+FnDrawRegisterFrame proc
+    push bp
+    mov bp, sp                          ; set up stack frame
+
+    push cs
+    pop es                              ; set es to VMem begin
+
+    push cs
+    pop ds                              ; set ds = cs
+
+    call FnDrawFrameWithTitle           ; redraw frame
+
+    mov bh, 1
+    mov cx, RegistersCount
+    add bp, 4                           ; set first line, lines count and increment bp
+
+@@RegisterDrawingLoop:
+    call FnGetFrameLineAddress
+    add di, RegisterValueOffset * 2     ; calculate value address
+
+    mov ax, [bp]                        ; mov next register value to ax
+    call FnPrintHexWord                 ; print ax value
+
+    inc bh
+    add bp, 2                           ; increment bp ('cause GOD DAMN FUCKING SHITTY DOS don't allows me to fucking address to [bp+bx])
+    loop @@RegisterDrawingLoop
+    
+    pop bp                              ; restore bp
+    ret
+endp
 
 ; -----------------------------------------------------------------------------
 ; | FnDrawFrameWithTitle
 ; | Args:   No args
 ; | Assumes:    Nothing
 ; | Returns:    Nothing
-; | Destroys:   cx, bx, ax registers data
+; | Destroys:   cx, ax registers data
 ; -----------------------------------------------------------------------------
 ret
 FnDrawFrameWithTitle proc
@@ -13,9 +50,9 @@ FnDrawFrameWithTitle proc
 
     mov si, offset FrameStyle
     mov ah, StyleAttribytes
-    call FnDrawBlankFrame           ; draw frame
+    call FnDrawBlankFrame               ; draw frame
 
-    call FnDrawTitleText            ; draw title
+    call FnDrawTitleText                ; draw title
     call FnPrintRegisterNames
 
     pop si
@@ -25,14 +62,12 @@ endp
 ; -----------------------------------------------------------------------------
 ; | FnDrawTitleText
 ; | Args:   No args
-; | Assumes:	text length < table line length
-; |		        line No < screen height
-; |             si register contains data address
-; |		        es register contains VMem address
+; | Assumes:    si register contains data address
+; |		        es, ds = cs
 ; |             df is set to 0
 ; | Returns: 	Nothing
 ; | Destroys:	Data in text cells
-; |		        ax, cx, bx registers data
+; |		        ax, cx registers data
 ; -----------------------------------------------------------------------------
 ret
 FnDrawTitleText	proc
@@ -41,14 +76,14 @@ FnDrawTitleText	proc
     mov si, offset FrameTitle
     mov ch, 0
     mov cl, TitleLength
-    call FnGetTitleLineAddress      ; get title line address
+    call FnGetTitleLineAddress          ; get title line address
 
 @@Next:	
     lodsb            
 	stosw
-    loop @@Next                     ; draw title
+    loop @@Next                         ; draw title
 
-    pop si                          ; restore si
+    pop si                              ; restore si
 	ret
 endp
 
@@ -56,14 +91,13 @@ endp
 ; | FnPrintRegisterNames
 ; | Args:   Nothing
 ; | Assumes:    df=0
-; |             es set to VMem address
-; |             ds set to code address
+; |             ds, es = cs
 ; | Returns:    Nothing
 ; | Destroys:   ax, bx, cx, dx, si registers data
 ; -----------------------------------------------------------------------------
 ret
 FnPrintRegisterNames proc
-    mov bh, FirstLine + 1
+    mov bh, 1
     mov cx, RegistersCount
     mov ax, 0
 
@@ -71,7 +105,7 @@ FnPrintRegisterNames proc
     push cx
     push ax
 
-    call FnGetLineAddress
+    call FnGetFrameLineAddress
     add di, 4
 
     mov cx, RegisterNameLength
@@ -102,51 +136,35 @@ endp
 ; -----------------------------------------------------------------------------
 ; | FnDrawBlankFrame
 ; | Args:	    ah - color attributes
-; |             bl - frame width
-; |             bh - frame height
 ; |             si - frame prototype array
-; | Assumes:    es contains VMem address
-; |             0 < width  <= screen width  - 2
-; | 		    0 < height <= screen height - 2
-; |             df is set to 0
-; | Returns: 	Nothing
-; | Destroys: 	cx register data
+; | Assumes:    df is set to 0
+; | Returns: 	si - next symbol
+; | Destroys: 	cx, di register data
 ; |		        Data in cells corresponding to frame
 ; -----------------------------------------------------------------------------
 ret
 FnDrawBlankFrame proc
-    push bx dx
+    push dx
 
-    mov dh, FrameHeight     ; set text field height
+    mov dh, FrameHeight                 ; set text field height
     sub dh, 2
 
-    mov bh, FirstLine       ; set first line
-    call FnGetLineAddress   ; get first line address
+    mov di, offset FrameBuffer
     
-    mov ch, 0
-    mov cl, FrameWidth
-    call FnDrawLine         ; draw first line
-
-    add dh, bh
+    mov cx, FrameHeight - 2
+    call FnDrawLine                     ; draw first line
 
 @@Next:
-    inc bh
-    call FnGetLineAddress   ; get line address
-
     call FnDrawLine
-    sub si, 3d              ; draw inner line and do si -= 3
+    sub si, 3d                          ; draw inner line and do si -= 3
 
-    cmp bh, dh
-    jb @@Next
+    loop @@Next
 
-    add si, 3d              ; get last line symbols address
+    add si, 3d                          ; get last line symbols address
 
-    inc bh
-    call FnGetLineAddress   ; get last line address
+    call FnDrawLine                     ; draw last line
 
-    call FnDrawLine         ; draw last line
-
-    pop dx bx
+    pop dx
 	ret
 endp
 
@@ -154,36 +172,34 @@ endp
 ; | FnDrawLine
 ; | Args: 	ah - color attributes
 ; |         di - line begin address
-; |		    cx - line length
 ; |         si - frame prototype array address
-; | Assumes:	es contains VMem address
-; |		        length is in suitable range (2 < length < screen size)
-; |             df is set to 0
-; | Returns:	Nothing
+; | Assumes:	df is set to 0
+; | Returns:	si - next symbol
+; |             di - next buffer cell
 ; | Destroys:	Data in cells corresponding to line 
-; ---------------------------------------------------------------6--------------
+; -----------------------------------------------------------------------------
 ret
 FnDrawLine	proc
-    push ax cx ; save registers
+    push ax cx                          ; save registers
 
-    sub cx, 2
-
-	lodsb
-    stosw       ; draw left symbol
+    mov cx, FrameWidth - 2
 
 	lodsb
-    rep stosw   ; draw middle symbols
+    stosw                               ; draw left symbol
 
 	lodsb
-    stosw       ; draw right symbol
+    rep stosw                           ; draw middle symbols
 
-    pop cx ax   ; restore registers
+	lodsb
+    stosw                               ; draw right symbol
+
+    pop cx ax                           ; restore registers
 
 	ret
 endp
 
 ; -----------------------------------------------------------------------------
-; | FnGetLineAddress
+; | FnGetFrameLineAddress
 ; | Args:   bh - line number
 ; | Assumes: 	0 < length < screen width
 ; |		        0 < line number <= screen height
@@ -191,22 +207,21 @@ endp
 ; | Destroys:	Nothing
 ; -----------------------------------------------------------------------------
 ret
-FnGetLineAddress proc
+FnGetFrameLineAddress proc
     push dx ax      ; save registers
 
-    mov dx, 0       ; first symbol on line (this can be changed for horizontal positioning)
+    mov di, offset FrameBuffer
 
     mov ah, 0
-    mov al, 80*2
-    mul bh          ; line address
+    mov al, FrameWidth * 2
+    mul bh                              ; line address
 
-    add ax, dx
-    mov di, ax      ; full address (may be odd)
+    add di, ax                          ; full address (may be odd)
 
     and ax, 1
-    add di, ax      ; move value to match alignment
+    add di, ax                          ; move value to match alignment
 
-    pop ax dx       ; restore registers
+    pop ax dx                           ; restore registers
 
 	ret
 endp
@@ -220,25 +235,19 @@ endp
 ; -----------------------------------------------------------------------------
 ret
 FnGetTitleLineAddress proc
-    push ax bx          ; save register
+    push ax bx                          ; save register
 
-    mov ax, 80*2
-    mov di, FirstLine
-    mul di
-    mov di, ax          ; line offset
+    mov di, offset FrameBuffer
 
-    mov bl, FrameWidth
-    mov bh, TitleLength
-
-    sub bl, bh
+    mov bl, FrameWidth - TitleLength
     mov bh, 0
 
-    add di, bx          ; full address (may be odd)
+    add di, bx                          ; full address (may be odd)
 
     and bx, 1
-    add di, bx          ; move value to match alignment
+    add di, bx                          ; move value to match alignment
 
-    pop bx ax           ; restore register
+    pop bx ax                           ; restore register
 
 	ret
 endp
@@ -254,10 +263,10 @@ endp
 ret
 FnPrintHexWord proc
     xchg al, ah
-    call FnPrintHexByte     ; print higher byte
+    call FnPrintHexByte                 ; print higher byte
     xchg al, ah
 
-    call FnPrintHexByte     ; print lower byte
+    call FnPrintHexByte                 ; print lower byte
 
     ret
 endp
@@ -293,4 +302,4 @@ FnPrintHexByte proc
     ret
 endp
 
-HexNumbers      db "0123456789ABCDEF"
+HexNumbers db "0123456789ABCDEF"
