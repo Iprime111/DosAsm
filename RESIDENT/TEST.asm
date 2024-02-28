@@ -5,17 +5,24 @@ org 100h
 locals @@
 
 Start:
-    mov ax, cs
-    mov bx, 0020h
-    mov cx, 0300h
-    mov dx, 4000h
+    mov ax, 1111h
+    mov bx, 2222h
+    mov cx, 3333h
+    mov dx, 4444h
+    mov si, 5555h
+    mov di, 6666h
 
-    push 0005h
+
+    push 7777h
     pop ds
 
-    push 0060h
+    push 8888h
     pop es
     
-    jmp Start
+    in al, 60h
+    cmp al, 1
+    jne Start
+
+    ret
 
 end Start
