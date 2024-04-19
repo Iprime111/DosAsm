@@ -155,7 +155,27 @@ FnDrawBlankFrame proc
     call FnDrawLine                     ; draw first line
 
 @@Next:
-    call FnDrawLine
+   FnPrintHexByte proc
+    push bx dx
+
+    mov bh, 0
+
+    mov bl, al
+    and bl, 0f0h
+    shr bl, 4
+    mov dl, ds:[offset HexNumbers + bx] 
+    mov es:[di], dl                         ; draw first digit
+    add di, 2
+
+    mov bl, al
+    and bl, 0fh
+    mov dl, ds:[offset HexNumbers + bx]
+    mov es:[di], dl                         ; draw second digit
+    add di, 2
+
+    pop dx bx
+    ret
+endp call FnDrawLine
     sub si, 3d                          ; draw inner line and do si -= 3
 
     loop @@Next
